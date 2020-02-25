@@ -289,10 +289,7 @@ void loop() {
 
     Serial.printf("Move?: %d\n", movement);
     // webSocket.sendTXT(0, msg_buf);
-    timeClient.update();
-    // formattedDate = (timeClient.getDay() + " " + formattedDate).c_str();
 
-    Serial.println(formattedDate);
     if (moveState == movement) {
       ptrEvent++;
       if (ptrEvent >= D_EVENTCOUNT) {
@@ -301,12 +298,14 @@ void loop() {
       timeClient.update();
       mvE[ptrEvent].state = movement;
       mvE[ptrEvent].ts = timeClient.getEpochTime();
-      const int capacity = JSON_OBJECT_SIZE(4 * D_EVENTCOUNT + 1);
+      const int capacity = JSON_OBJECT_SIZE(4 * D_EVENTCOUNT + 2);
       StaticJsonDocument<capacity> jsondoc;
       jsondoc["type"] = "movement";
+      timeClient.update();
+      jsondoc["datetime"] = timeClient.getEpochTime();
       for (int i = 0; i < D_EVENTCOUNT; i++) {
-       // String varname = "ts_" + String(i);
-        //Serial.println(varname);
+        // String varname = "ts_" + String(i);
+        // Serial.println(varname);
         jsondoc["ts_" + String(i)] = mvE[i].ts;
         jsondoc["state_" + String(i)] = mvE[i].state;
       }
@@ -323,8 +322,6 @@ void loop() {
     uint distance = getDistance();
     // Serial.printf("distance: %d\n", distance);
     ts_lastDistanceRead = millis();
-    timeClient.update();
-    formattedDate = (timeClient.getDay() + " " + formattedDate).c_str();
     const int capacity = JSON_OBJECT_SIZE(3);
     StaticJsonDocument<capacity> jsondoc;
     jsondoc["type"] = "distance";
@@ -337,16 +334,11 @@ void loop() {
   if (ts > ts_lastDHT11Read + 5000) {
     ts_lastDHT11Read = millis();
     sensors_event_t event;
-
-    timeClient.update();
-    formattedDate = timeClient.getFormattedTime();
-    String s = String(timeClient.getDay()) + " " + formattedDate;
-    Serial.println("s: ");
-    Serial.println(s);
-    Serial.println(s.c_str());
     const int capacity = JSON_OBJECT_SIZE(4);
     StaticJsonDocument<capacity> jsondoc;
     jsondoc["type"] = "klima";
+    timeClient.update();
+    jsondoc["datetime"] = timeClient.getEpochTime();
     dht.temperature().getEvent(&event);
     if (isnan(event.temperature)) {
       Serial.println(F("Error reading temperature!"));
@@ -366,9 +358,6 @@ void loop() {
       Serial.println(F("%"));
     }
     jsondoc["luftfeuchtigkeit"] = event.relative_humidity;
-    jsondoc["datetime"] =
-        timeClient.getEpochTime(); // s.c_str();//(String(timeClient.getDay()) +
-                                   // " " + formattedDate).c_str();
 
     serializeJson(jsondoc, msg_buf);
     // Serial.println(msg_buf);
