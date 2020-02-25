@@ -1,127 +1,228 @@
-<!DOCTYPE html>
-<meta charset="utf-8" />
-<title>WebSocket Test</title>
- 
+<!doctype html>
+<html lang="de">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="style.css">
+    <title>Keller</title>
+</head>
+
+
+
 <script language="javascript" type="text/javascript">
- 
-var url = "ws://192.168.18.10:1337/";
-var output;
-var button;
-var canvas;
-var context;
- 
-// This is called when the page finishes loading
-function init() {
- 
-    // Assign page elements to variables
-    button = document.getElementById("toggleButton");
-    output = document.getElementById("output");
-    canvas = document.getElementById("led");
-    ADValue = document.getElementById("ADValue");
-    // Draw circle in canvas
-    context = canvas.getContext("2d");
-    context.arc(25, 25, 15, 0, Math.PI * 2, false);
-    context.lineWidth = 3;
-    context.strokeStyle = "black";
-    context.stroke();
-    context.fillStyle = "black";
-    context.fill();
-    
-    // Connect to WebSocket server
-    wsConnect(url);
-}
 
-// Call this to connect to the WebSocket server
-function wsConnect(url) {
-    
-    // Connect to WebSocket server
-    websocket = new WebSocket(url);
-    
-    // Assign callbacks
-    websocket.onopen = function(evt) { onOpen(evt) };
-    websocket.onclose = function(evt) { onClose(evt) };
-    websocket.onmessage = function(evt) { onMessage(evt) };
-    websocket.onerror = function(evt) { onError(evt) };
-}
- 
-// Called when a WebSocket connection is established with the server
-function onOpen(evt) {
- 
-    // Log connection state
-    console.log("Connected");
-    
-    // Enable button
-    button.disabled = false;
-    
-    // Get the current state of the LED
-    doSend("getLEDState");
-}
- 
-// Called when the WebSocket connection is closed
-function onClose(evt) {
- 
-    // Log disconnection state
-    console.log("Disconnected");
-    
-    // Disable button
-    button.disabled = true;
-    
-    // Try to reconnect after a few seconds
-    setTimeout(function() { wsConnect(url) }, 2000);
-}
+    var url = "ws://192.168.18.10:1337/";
+    var output;
+    var button;
+    var canvas;
+    var context;
 
-// Called when a message is received from the server
-function onMessage(evt) {
- 
- // Print out our received message
- console.log("Received: " + evt.data);
- 
- // Update circle graphic with LED state
- switch(evt.data) {
-     case "0":
-         console.log("LED is off");
-         context.fillStyle = "black";
-         context.fill();
-         break;
-     case "1":
-         console.log("LED is on");
-         context.fillStyle = "red";
-         context.fill();
-         break;
-     default:
-         break;
- }
-}
+    // This is called when the page finishes loading
+    function init() {
 
-// Called when a WebSocket error occurs
-function onError(evt) {
- console.log("ERROR: " + evt.data);
-}
+        // Assign page elements to variables
+        button = document.getElementById("toggleButton");
+        output = document.getElementById("output");
+        canvas = document.getElementById("led");
 
-// Sends a message to the server (and prints it to the console)
-function doSend(message) {
- console.log("Sending: " + message);
- websocket.send(message);
-}
+        // Draw circle in canvas
+        context = canvas.getContext("2d");
+        context.arc(25, 25, 15, 0, Math.PI * 2, false);
+        context.lineWidth = 3;
+        context.strokeStyle = "black";
+        context.stroke();
+        context.fillStyle = "black";
+        context.fill();
 
-// Called whenever the HTML button is pressed
-function onPress() {
- doSend("toggleLED");
- doSend("getLEDState");
-}
+        // Connect to WebSocket server
+        wsConnect(url);
+    }
 
-// Call the init function as soon as the page loads
-window.addEventListener("load", init, false);
- 
+    // Call this to connect to the WebSocket server
+    function wsConnect(url) {
+
+        // Connect to WebSocket server
+        websocket = new WebSocket(url);
+
+        // Assign callbacks
+        websocket.onopen = function (evt) { onOpen(evt) };
+        websocket.onclose = function (evt) { onClose(evt) };
+        websocket.onmessage = function (evt) { onMessage(evt) };
+        websocket.onerror = function (evt) { onError(evt) };
+    }
+
+    // Called when a WebSocket connection is established with the server
+    function onOpen(evt) {
+
+        // Log connection state
+        console.log("Connected");
+
+        // Enable button
+        button.disabled = false;
+
+        // Get the current state of the LED
+        doSend("getLEDState");
+    }
+
+    // Called when the WebSocket connection is closed
+    function onClose(evt) {
+
+        // Log disconnection state
+        console.log("Disconnected");
+
+        // Disable button
+        button.disabled = true;
+
+        // Try to reconnect after a few seconds
+        setTimeout(function () { wsConnect(url) }, 2000);
+    }
+
+    onMessage = function (event) {
+        //var f = document.getElementById("data");
+        var text = "";
+        var msg = JSON.parse(event.data);
+        var time = new Date(msg.date);
+        var timeStr = time.toLocaleTimeString();
+        console.log("Received: " + event.data);
+        console.log("msg.type: " + msg.type);
+        switch (msg.type) {
+
+            case "distance":
+                setdistanz(msg);
+                break;
+            case "movement":
+                setmovement(msg);
+                break;
+            case "klima":
+                setklima(msg);
+                break;
+
+        }
+
+    };
+    function setklima(msg) {
+        dt = new Date( msg.datetime * 1000);
+        document.getElementById("temperatur").innerHTML = msg.temperatur;
+        document.getElementById("luftfeuchtigkeit").innerHTML = msg.luftfeuchtigkeit;
+        document.getElementById("DateTime").innerHTML = dt.toLocaleString();
+    }
+    function setdistanz(msg) {
+        dt = new Date( msg.datetime * 1000);
+        document.getElementById("distanz").innerHTML = msg.temperatur;
+        document.getElementById("DateTime").innerHTML = dt.toLocaleString();
+    }
+    function setmovement(msg) {
+        dt = new Date( msg.datetime * 1000);
+        document.getElementById("t1von").innerHTML = msg.t1von;
+        document.getElementById("t1bis").innerHTML = msg.t1bis;
+        document.getElementById("t2von").innerHTML = msg.t2von;
+        document.getElementById("t2bis").innerHTML = msg.t2bis;
+        document.getElementById("DateTime").innerHTML = dt.toLocaleString();
+    }
+
+    // Called when a message is received from the server
+    function ___onMessage(evt) {
+
+        // Print out our received message
+        console.log("Received: " + evt.data);
+
+        // Update circle graphic with LED state
+        switch (evt.data) {
+            case "0":
+                console.log("LED is off");
+                context.fillStyle = "black";
+                context.fill();
+                break;
+            case "1":
+                console.log("LED is on");
+                context.fillStyle = "red";
+                context.fill();
+                break;
+            default:
+                console.log(evt.data);
+                break;
+        }
+    }
+
+    // Called when a WebSocket error occurs
+    function onError(evt) {
+        console.log("ERROR: " + evt.data);
+    }
+
+    // Sends a message to the server (and prints it to the console)
+    function doSend(message) {
+        console.log("Sending: " + message);
+        websocket.send(message);
+    }
+
+    // Called whenever the HTML button is pressed
+    function onPress() {
+        doSend("toggleLED");
+        doSend("getLEDState");
+    }
+
+    // Call the init function as soon as the page loads
+    window.addEventListener("load", init, false);
+
 </script>
- 
-<h2>LED Control</h2>
- 
+
+<h2>Klima</h2>
+
 <table>
     <tr>
         <td><button id="toggleButton" onclick="onPress()" disabled>Toggle LED</button></td>
         <td><canvas id="led" width="50" height="50"></canvas></td>
     </tr>
-    <div id="ADValue"></div>
-
+    <tr>
+        <td colspan='2'>
+            <div id='DateTime'></div>
+        </td>
+    </tr>
+    <tr>
+        <td>
+            Temperatur:
+        </td>
+        <td>
+            <div id='temperatur'></div>
+        </td>
+    </tr>
+    <tr>
+        <td>
+            Luftfeuchtigkeit:
+        </td>
+        <td>
+            <div id='luftfeuchtigkeit'></div>
+        </td>
+        </td>
+    </tr>
+    <tr>
+        <td>
+            Distanz Tür:
+        </td>
+        <td>
+            <div id='distanz'></div>
+        </td>
+    </tr>
+    <tr>
+        <td colspan='2'>
+            Aktion:
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <div id='t1von'></div>
+        </td>
+        <td>
+            <div id='t1bis'></div>
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <div id='t2von'></div>
+        </td>
+        <td>
+            <div id='t2bis'></div>
+        </td>
+    </tr>
 </table>
