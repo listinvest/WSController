@@ -1,231 +1,429 @@
 <!doctype html>
 <html lang="de">
 
-<head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="stylesheet" href="style.css">
-    <title>Keller</title>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link rel="stylesheet" href="style.css">
+        <title>Keller</title>
+    
+
+
+
+    <script language="javascript" type="text/javascript">
+
+        var url = "ws://192.168.18.10:1337/";
+        var output;
+        var button;
+        var canvas;
+        var context;
+
+        // This is called when the page finishes loading
+        function init() {
+
+            // Assign page elements to variables
+            button = document.getElementById("toggleButton");
+            output = document.getElementById("output");
+            canvas = document.getElementById("led");
+
+            // Draw circle in canvas
+            context = canvas.getContext("2d");
+            context.arc(25, 25, 15, 0, Math.PI * 2, false);
+            context.lineWidth = 3;
+            context.strokeStyle = "black";
+            context.stroke();
+            context.fillStyle = "black";
+            context.fill();
+
+            // Connect to WebSocket server
+            wsConnect(url);
+        }
+
+        // Call this to connect to the WebSocket server
+        function wsConnect(url) {
+
+            // Connect to WebSocket server
+            websocket = new WebSocket(url);
+
+            // Assign callbacks
+            websocket.onopen = function (evt) {
+                onOpen(evt)
+            };
+            websocket.onclose = function (evt) {
+                onClose(evt)
+            };
+            websocket.onmessage = function (evt) {
+                onMessage(evt)
+            };
+            websocket.onerror = function (evt) {
+                onError(evt)
+            };
+        }
+
+        // Called when a WebSocket connection is established with the server
+        function onOpen(evt) {
+
+            // Log connection state
+            console.log("Connected");
+
+            // Enable button
+            button.disabled = false;
+
+            // Get the current state of the LED
+            doSend("getLEDState");
+        }
+
+        // Called when the WebSocket connection is closed
+        function onClose(evt) {
+
+            // Log disconnection state
+            console.log("Disconnected");
+
+            // Disable button
+            button.disabled = true;
+
+            // Try to reconnect after a few seconds
+            setTimeout(function () {
+                wsConnect(url)
+            }, 2000);
+        }
+
+        onMessage = function (event) {
+            //var f = document.getElementById("data");
+            //var text = "";
+            var msg = JSON.parse(event.data);
+            var time = new Date(msg.date);
+            //var timeStr = time.toLocaleTimeString();
+            console.log("Received: " + event.data);
+            console.log("msg.type: " + msg.type);
+            switch (msg.type) {
+
+                case "distance":
+                    setdistanz(msg);
+                    break;
+                case "movement":
+                    setmovement(msg);
+                    break;
+                case "klima":
+                    setklima(msg);
+                    break;
+
+            }
+
+        };
+        function setklima(msg) {
+            dt = new Date(msg.datetime * 1000);
+            document.getElementById("temperatur").innerHTML = msg.temperatur;
+            document.getElementById("luftfeuchtigkeit").innerHTML = msg.luftfeuchtigkeit;
+            document.getElementById("DateTime").innerHTML = dt.toLocaleString();
+        }
+        function setdistanz(msg) {
+            dt = new Date(msg.datetime * 1000);
+            document.getElementById("distanz").innerHTML = msg.distance;
+            document.getElementById("DateTime").innerHTML = dt.toLocaleString();
+        }
+        function setmovement(msg) {
+
+            //var msg = {"type": "movement", "ts_0": 0, "state_0": 0, "ts_1": 1582657010, "state_1": 0, "ts_3": 1582657022, "state_3": 1, "ts_4": 1582657030, "state_4": 1, "ts_5": 1582657036, "state_5": 0, "ts_6": 1582657042, "state_6": 0, "ts_7": 1582657048, "state_7": 0, "ts_2": 1582657016, "state_2": 1, "ts_8": 1582657054, "state_8": 0, "ts_9": 1582657060, "state_9": 0, "ts_10": 1582657066, "state_10": 0, "ts_11": 1582657072, "state_11": 0, "ts_12": 1582657078, "state_12": 0, "ts_13": 0, "state_13": 0, "ts_14": 0, "state_14": 0, "ts_15": 0, "state_15": 0, "ts_16": 0, "state_16": 0, "ts_17": 0, "state_17": 0, "ts_18": 0, "state_18": 0, "ts_19": 0, "state_19": 0}
+            var ar = new Array(20);
+            for (var i = 0; i < ar.length; i++) {
+                ar[i] = new Array(2);
+                ar[i][0] = -1;
+                ar[i][1] = -1;
+            }
+            dt = new Date(msg.datetime * 1000);
+
+            Object.keys(msg).forEach(key => {
+                //console.log("key: " + key);
+                let value = msg[key];
+
+                elems = key.split("_");
+
+                if (!isNaN(elems[1])) {
+
+                    num = elems[1];
+                }
+                //console.log(key + ": " + value);
+
+                if (key.indexOf("state_") !== -1) {
+                    ar[num][0] = value;
+                } else if (key.indexOf("ts_") !== -1) {
+                    ar[num][1] = value;
+                }
+            });
+            ar.sort(function (a, b) {
+                return b[1] - a[1]
+            });
+            var duration = 0;
+            for (var i = 0; i < ar.length; i++) {
+             //   console.log("2: " + i + " -> " + ar[i][1] + " : " + ar[i][0]);
+                if (i>0 && i < 19) {
+                    duration = ar[i-1][1] - ar[i][1];
+                } else {
+                    duration = "-";
+                }
+                dt.setTime(ar[i][1] * 1000);
+                document.getElementById("ts" + i).innerHTML = dt.toLocaleString() + "  (" + duration + ")";
+                document.getElementById("state" + i).innerHTML = ar[i][0];
+            }
+
+            document.getElementById("DateTime").innerHTML = dt.toLocaleString();
+        }
+
+        // Called when a message is received from the server
+        function ___onMessage(evt) {
+
+            // Print out our received message
+            console.log("Received: " + evt.data);
+
+            // Update circle graphic with LED state
+            switch (evt.data) {
+                case "0":
+                    console.log("LED is off");
+                    context.fillStyle = "black";
+                    context.fill();
+                    break;
+                case "1":
+                    console.log("LED is on");
+                    context.fillStyle = "red";
+                    context.fill();
+                    break;
+                default:
+                    console.log(evt.data);
+                    break;
+            }
+        }
+
+        // Called when a WebSocket error occurs
+        function onError(evt) {
+            console.log("ERROR: " + evt.data);
+        }
+
+        // Sends a message to the server (and prints it to the console)
+        function doSend(message) {
+            console.log("Sending: " + message);
+            websocket.send(message);
+        }
+
+        // Called whenever the HTML button is pressed
+        function onPress() {
+            doSend("toggleLED");
+            doSend("getLEDState");
+        }
+
+        // Call the init function as soon as the page loads
+        window.addEventListener("load", init, false);
+
+    </script>
 </head>
+<body>
 
 
+    <table>
+        <tr>
+            <td><button id="toggleButton" onclick="onPress()" disabled>Toggle LED</button></td>
+            <td><canvas id="led" width="50" height="50"></canvas></td>
+        </tr>
+        <tr>
+            <td colspan='2'>
+                <div id='DateTime'></div>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                Temperatur:
+            </td>
+            <td>
+                <div id='temperatur'></div>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                Luftfeuchtigkeit:
+            </td>
+            <td>
+                <div id='luftfeuchtigkeit'></div>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                Distanz Tür:
+            </td>
+            <td>
+                <div id='distanz'></div>
+            </td>
+        </tr>
+        <tr>
+            <td colspan='2'>
+                Aktion:
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <div id='ts0'></div>
+            </td>
+            <td>
+                <div id='state0'></div>
+            </td>
+        <tr>
+            <td>
+                <div id='ts1'></div>
+            </td>
+            <td>
+                <div id='state1'></div>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <div id='ts2'></div>
+            </td>
+            <td>
+                <div id='state2'></div>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <div id='ts3'></div>
+            </td>
+            <td>
+                <div id='state3'></div>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <div id='ts4'></div>
+            </td>
+            <td>
+                <div id='state4'></div>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <div id='ts5'></div>
+            </td>
+            <td>
+                <div id='state5'></div>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <div id='ts6'></div>
+            </td>
+            <td>
+                <div id='state6'></div>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <div id='ts7'></div>
+            </td>
+            <td>
+                <div id='state7'></div>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <div id='ts8'></div>
+            </td>
+            <td>
+                <div id='state8'></div>
+            </td>
+        </tr>        
+        <tr>
+            <td>
+                <div id='ts9'></div>
+            </td>
+            <td>
+                <div id='state9'></div>
+            </td>
+        </tr>        
+        <tr>
+            <td>
+                <div id='ts10'></div>
+            </td>
+            <td>
+                <div id='state10'></div>
+            </td>
+        </tr>        
+        <tr>
+            <td>
+                <div id='ts11'></div>
+            </td>
+            <td>
+                <div id='state11'></div>
+            </td>
+        </tr>        
+        <tr>
+            <td>
+                <div id='ts12'></div>
+            </td>
+            <td>
+                <div id='state12'></div>
+            </td>
+        </tr>        
+        <tr>
+            <td>
+                <div id='ts13'></div>
+            </td>
+            <td>
+                <div id='state13'></div>
+            </td>
+        </tr>        
+        <tr>
+            <td>
+                <div id='ts14'></div>
+            </td>
+            <td>
+                <div id='state14'></div>
+            </td>
+        </tr>        
+        <tr>
+            <td>
+                <div id='ts15'></div>
+            </td>
+            <td>
+                <div id='state15'></div>
+            </td>
+        </tr>        
+        <tr>
+            <td>
+                <div id='ts16'></div>
+            </td>
+            <td>
+                <div id='state16'></div>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <div id='ts17'></div>
+            </td>
+            <td>
+                <div id='state17'></div>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <div id='ts18'></div>
+            </td>
+            <td>
+                <div id='state18'></div>
+            </td>
+        </tr>
 
+        <tr>
+            <td>
+                <div id='ts19'></div>
+            </td>
+            <td>
+                <div id='state19'></div>
+            </td>
+        </tr>
+
+</table>
 <script language="javascript" type="text/javascript">
-
-    var url = "ws://192.168.18.10:1337/";
-    var output;
-    var button;
-    var canvas;
-    var context;
-
-    // This is called when the page finishes loading
-    function init() {
-
-        // Assign page elements to variables
-        button = document.getElementById("toggleButton");
-        output = document.getElementById("output");
-        canvas = document.getElementById("led");
-
-        // Draw circle in canvas
-        context = canvas.getContext("2d");
-        context.arc(25, 25, 15, 0, Math.PI * 2, false);
-        context.lineWidth = 3;
-        context.strokeStyle = "black";
-        context.stroke();
-        context.fillStyle = "black";
-        context.fill();
-
-        // Connect to WebSocket server
-        wsConnect(url);
-    }
-
-    // Call this to connect to the WebSocket server
-    function wsConnect(url) {
-
-        // Connect to WebSocket server
-        websocket = new WebSocket(url);
-
-        // Assign callbacks
-        websocket.onopen = function (evt) { onOpen(evt) };
-        websocket.onclose = function (evt) { onClose(evt) };
-        websocket.onmessage = function (evt) { onMessage(evt) };
-        websocket.onerror = function (evt) { onError(evt) };
-    }
-
-    // Called when a WebSocket connection is established with the server
-    function onOpen(evt) {
-
-        // Log connection state
-        console.log("Connected");
-
-        // Enable button
-        button.disabled = false;
-
-        // Get the current state of the LED
-        doSend("getLEDState");
-    }
-
-    // Called when the WebSocket connection is closed
-    function onClose(evt) {
-
-        // Log disconnection state
-        console.log("Disconnected");
-
-        // Disable button
-        button.disabled = true;
-
-        // Try to reconnect after a few seconds
-        setTimeout(function () { wsConnect(url) }, 2000);
-    }
-
-    onMessage = function (event) {
-        //var f = document.getElementById("data");
-        var text = "";
-        var msg = JSON.parse(event.data);
-        var time = new Date(msg.date);
-        var timeStr = time.toLocaleTimeString();
-        console.log("Received: " + event.data);
-        console.log("msg.type: " + msg.type);
-        switch (msg.type) {
-
-            case "distance":
-                setdistanz(msg);
-                break;
-            case "movement":
-                setmovement(msg);
-                break;
-            case "klima":
-                setklima(msg);
-                break;
-
-        }
-
-    };
-    function setklima(msg) {
-        dt = new Date( msg.datetime * 1000);
-        document.getElementById("temperatur").innerHTML = msg.temperatur;
-        document.getElementById("luftfeuchtigkeit").innerHTML = msg.luftfeuchtigkeit;
-        document.getElementById("DateTime").innerHTML = dt.toLocaleString();
-    }
-    function setdistanz(msg) {
-        dt = new Date( msg.datetime * 1000);
-        document.getElementById("distanz").innerHTML = msg.temperatur;
-        document.getElementById("DateTime").innerHTML = dt.toLocaleString();
-    }
-    function setmovement(msg) {
-      let msg =   {"type":"movement","ts_0":0,"state_0":0,"ts_1":1582657010,"state_1":1,"ts_2":1582657016,"state_2":1,"ts_3":1582657022,"state_3":1,"ts_4":1582657030,"state_4":0,"ts_5":1582657036,"state_5":0,"ts_6":1582657042,"state_6":0,"ts_7":1582657048,"state_7":0,"ts_8":1582657054,"state_8":0,"ts_9":1582657060,"state_9":0,"ts_10":1582657066,"state_10":0,"ts_11":1582657072,"state_11":0,"ts_12":1582657078,"state_12":0,"ts_13":0,"state_13":0,"ts_14":0,"state_14":0,"ts_15":0,"state_15":0,"ts_16":0,"state_16":0,"ts_17":0,"state_17":0,"ts_18":0,"state_18":0,"ts_19":0,"state_19":0}
-        dt = new Date( msg.datetime * 1000);
-Object.keys(msg).forEach(key => {
-  let value = obj[key];
-  console.log(key + ": " + value);
-  //use key and value here
-  console.log(key + "::: " + value);
-});
-        document.getElementById("DateTime").innerHTML = dt.toLocaleString();
-    }
-
-    // Called when a message is received from the server
-    function ___onMessage(evt) {
-
-        // Print out our received message
-        console.log("Received: " + evt.data);
-
-        // Update circle graphic with LED state
-        switch (evt.data) {
-            case "0":
-                console.log("LED is off");
-                context.fillStyle = "black";
-                context.fill();
-                break;
-            case "1":
-                console.log("LED is on");
-                context.fillStyle = "red";
-                context.fill();
-                break;
-            default:
-                console.log(evt.data);
-                break;
-        }
-    }
-
-    // Called when a WebSocket error occurs
-    function onError(evt) {
-        console.log("ERROR: " + evt.data);
-    }
-
-    // Sends a message to the server (and prints it to the console)
-    function doSend(message) {
-        console.log("Sending: " + message);
-        websocket.send(message);
-    }
-
-    // Called whenever the HTML button is pressed
-    function onPress() {
-        doSend("toggleLED");
-        doSend("getLEDState");
-    }
-
-    // Call the init function as soon as the page loads
-    window.addEventListener("load", init, false);
-
+    //setmovement();
 </script>
 
-<h2>Klima</h2>
 
-<table>
-    <tr>
-        <td><button id="toggleButton" onclick="onPress()" disabled>Toggle LED</button></td>
-        <td><canvas id="led" width="50" height="50"></canvas></td>
-    </tr>
-    <tr>
-        <td colspan='2'>
-            <div id='DateTime'></div>
-        </td>
-    </tr>
-    <tr>
-        <td>
-            Temperatur:
-        </td>
-        <td>
-            <div id='temperatur'></div>
-        </td>
-    </tr>
-    <tr>
-        <td>
-            Luftfeuchtigkeit:
-        </td>
-        <td>
-            <div id='luftfeuchtigkeit'></div>
-        </td>
-        </td>
-    </tr>
-    <tr>
-        <td>
-            Distanz Tür:
-        </td>
-        <td>
-            <div id='distanz'></div>
-        </td>
-    </tr>
-    <tr>
-        <td colspan='2'>
-            Aktion:
-        </td>
-    </tr>
-    <tr>
-        <td>
-            <div id='t1von'></div>
-        </td>
-        <td>
-            <div id='t1bis'></div>
-        </td>
-    </tr>
-    <tr>
-        <td>
-            <div id='t2von'></div>
-        </td>
-        <td>
-            <div id='t2bis'></div>
-        </td>
-    </tr>
-</table>
+</body>
+</html>

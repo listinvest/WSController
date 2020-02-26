@@ -28,9 +28,6 @@ uint8_t moveState = 0;
 
 DHT_Unified dht(D_DHT11, DHT11);
 
-// Variables to save date and time
-String formattedDate;
-
 WiFiUDP ntpUDP;
 
 // You can specify the time server pool and the offset (in seconds, can be
@@ -287,25 +284,25 @@ void loop() {
     ts_lastMovementRead = millis();
     bool movement = digitalRead(D_BEWEGuNGSSENSOR);
 
-    Serial.printf("Move?: %d\n", movement);
+    //Serial.printf("Move?: %d\n", movement);
     // webSocket.sendTXT(0, msg_buf);
 
-    if (moveState == movement) {
+    if (moveState != movement) {
       ptrEvent++;
       if (ptrEvent >= D_EVENTCOUNT) {
         ptrEvent = 0;
       }
-      timeClient.update();
+
       mvE[ptrEvent].state = movement;
       mvE[ptrEvent].ts = timeClient.getEpochTime();
-      const int capacity = JSON_OBJECT_SIZE(4 * D_EVENTCOUNT + 2);
+      // größere capacity wg. String duplucation
+      const int capacity = JSON_OBJECT_SIZE(4 * D_EVENTCOUNT + 1);
       StaticJsonDocument<capacity> jsondoc;
       jsondoc["type"] = "movement";
       timeClient.update();
       jsondoc["datetime"] = timeClient.getEpochTime();
       for (int i = 0; i < D_EVENTCOUNT; i++) {
-        // String varname = "ts_" + String(i);
-        // Serial.println(varname);
+
         jsondoc["ts_" + String(i)] = mvE[i].ts;
         jsondoc["state_" + String(i)] = mvE[i].state;
       }
@@ -313,27 +310,28 @@ void loop() {
       serializeJson(jsondoc, msg_buf);
       // Serial.println(msg_buf);
       webSocket.sendTXT(0, msg_buf);
-      delay(5900);
     }
     moveState = movement;
   }
-  if (ts > ts_lastDistanceRead + 200000) {
+  if (ts > ts_lastDistanceRead + 2000) {
 
     uint distance = getDistance();
-    // Serial.printf("distance: %d\n", distance);
     ts_lastDistanceRead = millis();
     const int capacity = JSON_OBJECT_SIZE(3);
     StaticJsonDocument<capacity> jsondoc;
     jsondoc["type"] = "distance";
+    timeClient.update();
+    jsondoc["datetime"] = timeClient.getEpochTime();
     jsondoc["distance"] = distance;
     jsondoc["ts"] = ts_lastDistanceRead / 1000;
     serializeJson(jsondoc, msg_buf);
-    // Serial.println(msg_buf);
+
     webSocket.sendTXT(0, msg_buf);
   }
   if (ts > ts_lastDHT11Read + 5000) {
     ts_lastDHT11Read = millis();
     sensors_event_t event;
+
     const int capacity = JSON_OBJECT_SIZE(4);
     StaticJsonDocument<capacity> jsondoc;
     jsondoc["type"] = "klima";
