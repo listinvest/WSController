@@ -39,8 +39,7 @@ NTPClient timeClient(ntpUDP, "europe.pool.ntp.org", 0);
  */
 
 // Callback: receiving any WebSocket message
-void onWebSocketEvent(uint8_t client_num, WStype_t type, uint8_t *payload,
-                      size_t length) {
+void onWebSocketEvent(uint8_t client_num, WStype_t type, uint8_t *payload, size_t length) {
 
   // Figure out the type of WebSocket event
   switch (type) {
@@ -95,24 +94,21 @@ void onWebSocketEvent(uint8_t client_num, WStype_t type, uint8_t *payload,
 // Callback: send homepage
 void onIndexRequest(AsyncWebServerRequest *request) {
   IPAddress remote_ip = request->client()->remoteIP();
-  Serial.println("[" + remote_ip.toString() + "] HTTP GET request of " +
-                 request->url());
+  Serial.println("[" + remote_ip.toString() + "] HTTP GET request of " + request->url());
   request->send(SPIFFS, "/index.html", "text/html");
 }
 
 // Callback: send style sheet
 void onCSSRequest(AsyncWebServerRequest *request) {
   IPAddress remote_ip = request->client()->remoteIP();
-  Serial.println("[" + remote_ip.toString() + "] HTTP GET request of " +
-                 request->url());
+  Serial.println("[" + remote_ip.toString() + "] HTTP GET request of " + request->url());
   request->send(SPIFFS, "/style.css", "text/css");
 }
 
 // Callback: send 404 if requested file does not exist
 void onPageNotFound(AsyncWebServerRequest *request) {
   IPAddress remote_ip = request->client()->remoteIP();
-  Serial.println("[" + remote_ip.toString() + "] HTTP GET request of " +
-                 request->url());
+  Serial.println("[" + remote_ip.toString() + "] HTTP GET request of " + request->url());
   request->send(404, "text/plain", "Not found");
 }
 
@@ -225,7 +221,7 @@ void setup() {
     Serial.printf("trigPin3: %d\n", digitalRead(D_SR04_TriggerPin));*/
 
   dht.begin();
-  Serial.println(F("DHTxx Unified Sensor Example"));
+  Serial.println(F("DHTxx Unified Sensor Example")); // Print temperature sensor details.
   // Print temperature sensor details.
   sensor_t sensor;
   dht.temperature().getSensor(&sensor);
@@ -284,10 +280,10 @@ void loop() {
     ts_lastMovementRead = millis();
     bool movement = digitalRead(D_BEWEGuNGSSENSOR);
 
-    //Serial.printf("Move?: %d\n", movement);
+    // Serial.printf("Move?: %d\n", movement);
     // webSocket.sendTXT(0, msg_buf);
 
-    if (moveState != movement) {
+    if (moveState != movement) { // Serial.printf("Move?: %d\n", movement);// Serial.printf("Move?: %d\n", movement);
       ptrEvent++;
       if (ptrEvent >= D_EVENTCOUNT) {
         ptrEvent = 0;
