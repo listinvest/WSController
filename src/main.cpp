@@ -181,9 +181,9 @@ void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties 
 }
 
 void onMqttPublish(uint16_t packetId) {
-  Serial.println("Publish acknowledged.");
-  Serial.print("  packetId: ");
-  Serial.println(packetId);
+  /* Serial.println("Publish acknowledged.");
+   Serial.print("  packetId: ");
+   Serial.println(packetId);*/
 }
 
 // Callback: receiving any WebSocket message
@@ -549,9 +549,12 @@ void gotoDeepSleep() {
   Serial.printf("deep sleep (%lds since last reset, %lds since last boot)\n", now.tv_sec, now.tv_sec - last);
 
   last = now.tv_sec;
-
-  esp_sleep_enable_timer_wakeup(60000000 * deepSleepDauer); // set timer but don't sleep now
-                                                            // esp_bluedroid_disable, esp_bt_controller_disable, esp_wifi_stop
+  // ohne ULL kapiert der compiler nicht das es 64bit sind und ds funzt nicht
+  uint64_t dst = 60000000ULL * deepSleepDauer;
+  Serial.print("min: ");
+  Serial.println(deepSleepDauer);
+  esp_sleep_enable_timer_wakeup(dst); // set timer but don't sleep now
+                                      // esp_bluedroid_disable, esp_bt_controller_disable, esp_wifi_stop
   printf("config IO\n");
   // Wake if low=0 high=1
   esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
