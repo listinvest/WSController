@@ -22,12 +22,15 @@ int led_state = 0;
 uint ts_lastMovementRead = 0;
 uint ts_lastDistanceRead = 0;
 uint ts_lastDHT11Read = 0;
-uint ts_DeepSleepTime = 60000;
+uint ts_deepSleepTime = 0;
+bool deepSleepEnable = true;
+uint8_t deepSleepDauer = D_DeepSleepDauer; // Minuten
+// uint ts_DeepSleepTime = 60000;
 uint ts = 0;
 
 uint8_t ptrEvent = 0;
 moveEvent_t mvE[D_EVENTCOUNT];
-uint8_t moveState = 0;
+uint8_t moveState = 1;
 
 DHT_Unified dht(D_DHT11, DHT11);
 
@@ -77,19 +80,18 @@ void onMqttConnect(bool sessionPresent) {
   /*
 uint16_t publish(const char* topic, uint8_t qos, bool retain, const char* payload = nullptr, size_t length = 0, bool dup = false, uint16_t message_id = 0)
   */
-  Serial.println("Connected to MQTT.");
-  Serial.print("Session present: ");
-  Serial.println(sessionPresent);
-
-  /*uint16_t packetIdSub = mqttClient.subscribe("test/lol", 2);
-  Serial.print("Subscribing at QoS 2, packetId: ");
-  Serial.println(packetIdSub);
- */
+  /*  Serial.println("Connected to MQTT.");
+    Serial.print("Session present: ");
+    Serial.println(sessionPresent);*/
+  uint16_t packetIdSub = mqttClient.subscribe("keller/DeepSleepEnable", 1);
+  packetIdSub = mqttClient.subscribe("keller/DeepSleepDauer", 1);
+  /*Serial.print("Subscribing at QoS 2, packetId: ");
+  Serial.println(packetIdSub);*/
 
   // mqttClient.publish("keller", 0, true, "test 1");
-  Serial.println("Publishing at QoS 0");
+  // Serial.println("Publishing at QoS 0");
   // uint16_t packetIdPub1 =
-  mqttClient.publish("keller/temperatur", 1, true, "10");
+  // mqttClient.publish("keller/temperatur", 1, true, "10");
 
   /*Serial.print("Publishing at QoS 1, packetId: ");
   Serial.println(packetIdPub1);
@@ -109,6 +111,7 @@ void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
 }
 
 void onMqttSubscribe(uint16_t packetId, uint8_t qos) {
+  return;
   Serial.println("Subscribe acknowledged.");
   Serial.print("  packetId: ");
   Serial.println(packetId);
@@ -117,27 +120,64 @@ void onMqttSubscribe(uint16_t packetId, uint8_t qos) {
 }
 
 void onMqttUnsubscribe(uint16_t packetId) {
+  return;
   Serial.println("Unsubscribe acknowledged.");
   Serial.print("  packetId: ");
   Serial.println(packetId);
 }
+int msg2Int(char *msg, size_t len) {
+  int retval = -1;
+  char *c_ptr;
+  char str[8];
+  c_ptr = &str[0];
+  for (int i = 0; i < len; i++) {
+
+    c_ptr[i] = (char)msg[i];
+  }
+  c_ptr[len] = '\0';
+  retval = atoi(str);
+
+  return retval;
+}
 
 void onMqttMessage(char *topic, char *payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total) {
-  Serial.println("Publish received.");
-  Serial.print("  topic: ");
-  Serial.println(topic);
-  Serial.print("  qos: ");
-  Serial.println(properties.qos);
-  Serial.print("  dup: ");
-  Serial.println(properties.dup);
-  Serial.print("  retain: ");
-  Serial.println(properties.retain);
-  Serial.print("  len: ");
-  Serial.println(len);
-  Serial.print("  index: ");
-  Serial.println(index);
-  Serial.print("  total: ");
-  Serial.println(total);
+  /* Serial.println("Publish received.");
+   Serial.print("  topic: ");
+   Serial.println(topic);
+   Serial.print("  qos: ");
+   Serial.println(properties.qos);
+   Serial.print("  dup: ");
+   Serial.println(properties.dup);
+   Serial.print("  retain: ");
+   Serial.println(properties.retain);
+   Serial.print("  len: ");
+   Serial.println(len);
+   Serial.print("  index: ");
+   Serial.println(index);
+   Serial.print("  total: ");
+   Serial.println(total);
+   Serial.print("  payload: ");
+   Serial.println(payload);*/
+  if (strcmp(topic, "keller/DeepSleepEnable") == 0) {
+    Serial.println("Setting deepSleepEnable");
+    deepSleepEnable = ((strncmp(payload, "true", 4)) ? false : true);
+  }
+  if (strcmp(topic, "keller/DeepSleepDauer") == 0) {
+    Serial.println("Setting deepSleepDauer");
+
+    int dsd = msg2Int(payload, len);
+    if (dsd < 1 || dsd > 255) {
+      deepSleepDauer = D_DeepSleepDauer; // fehler oder 0 zurück zu default
+    } else {
+      deepSleepDauer = dsd;
+    }
+    EEPROM.writeByte(0, deepSleepDauer);
+    EEPROM.commit();
+    mqttClient.publish("keller/dsin", 1, true, String(deepSleepDauer).c_str());
+    printf("deepSleepDauer %d \n", deepSleepDauer);
+  }
+  /* Serial.print("deepSleepEnable: ");
+   Serial.println(deepSleepEnable);*/
 }
 
 void onMqttPublish(uint16_t packetId) {
@@ -281,11 +321,12 @@ void connectToWifi() {
  * Main
  */
 void setup() {
-  // Init LED and turn off
 
+  EEPROM.begin(1);
+  deepSleepDauer = EEPROM.read(0); // DeepSleepDauer in _Minuten
   // Start Serial port
   Serial.begin(115200);
-  print_wakeup_reason();
+
   connectToWifi();
 
   // Make sure we can read the file system
@@ -310,31 +351,25 @@ void setup() {
   mqttClient.onPublish(onMqttPublish);
   mqttClient.setServer(MQTT_HOST, MQTT_PORT);
   mqttClient.setCredentials("domo", "domoomod");
-  Serial.print("nach onmqttt.......");
-  delay(1000);
+
   // network = true;
 
   // On HTTP request for root, provide index.html file
   server.on("/", HTTP_GET, onIndexRequest);
-  Serial.print("nach onmqttt2.......");
 
   // On HTTP request for style sheet, provide style.css
   server.on("/style.css", HTTP_GET, onCSSRequest);
-  Serial.print("nach onmqttt.3......");
 
   // Handle requests for pages that do not exist
   server.onNotFound(onPageNotFound);
-  Serial.print("nach onmqttt.......");
 
   // Start web server
   server.begin();
-  Serial.print("webserver begin.......");
 
   // Start WebSocket server and assign callback
   webSocket.begin();
   webSocket.onEvent(onWebSocketEvent);
-  Serial.print("nach websocket......");
-  delay(3000);
+
   rtc_gpio_deinit((gpio_num_t)D_BEWEGuNGSSENSOR);
   pinMode(D_SR04_EchoPin, INPUT_PULLDOWN);
   pinMode(D_SR04_TriggerPin, OUTPUT);
@@ -353,51 +388,56 @@ void setup() {
   // Print temperature sensor details.
   sensor_t sensor;
   dht.temperature().getSensor(&sensor);
-  Serial.println(F("------------------------------------"));
-  Serial.println(F("Temperature Sensor"));
-  Serial.print(F("Sensor Type: "));
-  Serial.println(sensor.name);
-  Serial.print(F("Driver Ver:  "));
-  Serial.println(sensor.version);
-  Serial.print(F("Unique ID:   "));
-  Serial.println(sensor.sensor_id);
-  Serial.print(F("Max Value:   "));
-  Serial.print(sensor.max_value);
-  Serial.println(F("°C"));
-  Serial.print(F("Min Value:   "));
-  Serial.print(sensor.min_value);
-  Serial.println(F("°C"));
-  Serial.print(F("Resolution:  "));
-  Serial.print(sensor.resolution);
-  Serial.println(F("°C"));
-  Serial.println(F("------------------------------------"));
+  /* Serial.println(F("------------------------------------"));
+   Serial.println(F("Temperature Sensor"));
+   Serial.print(F("Sensor Type: "));
+   Serial.println(sensor.name);
+   Serial.print(F("Driver Ver:  "));
+   Serial.println(sensor.version);
+   Serial.print(F("Unique ID:   "));
+   Serial.println(sensor.sensor_id);
+   Serial.print(F("Max Value:   "));
+   Serial.print(sensor.max_value);
+   Serial.println(F("°C"));
+   Serial.print(F("Min Value:   "));
+   Serial.print(sensor.min_value);
+   Serial.println(F("°C"));
+   Serial.print(F("Resolution:  "));
+   Serial.print(sensor.resolution);
+   Serial.println(F("°C"));
+   Serial.println(F("------------------------------------"));*/
   // Print humidity sensor details.
   dht.humidity().getSensor(&sensor);
-  Serial.println(F("Humidity Sensor"));
-  Serial.print(F("Sensor Type: "));
-  Serial.println(sensor.name);
-  Serial.print(F("Driver Ver:  "));
-  Serial.println(sensor.version);
-  Serial.print(F("Unique ID:   "));
-  Serial.println(sensor.sensor_id);
-  Serial.print(F("Max Value:   "));
-  Serial.print(sensor.max_value);
-  Serial.println(F("%"));
-  Serial.print(F("Min Value:   "));
-  Serial.print(sensor.min_value);
-  Serial.println(F("%"));
-  Serial.print(F("Resolution:  "));
-  Serial.print(sensor.resolution);
-  Serial.println(F("%"));
-  Serial.println(F("------------------------------------"));
+  /* Serial.println(F("Humidity Sensor"));
+   Serial.print(F("Sensor Type: "));
+   Serial.println(sensor.name);
+   Serial.print(F("Driver Ver:  "));
+   Serial.println(sensor.version);
+   Serial.print(F("Unique ID:   "));
+   Serial.println(sensor.sensor_id);
+   Serial.print(F("Max Value:   "));
+   Serial.print(sensor.max_value);
+   Serial.println(F("%"));
+   Serial.print(F("Min Value:   "));
+   Serial.print(sensor.min_value);
+   Serial.println(F("%"));
+   Serial.print(F("Resolution:  "));
+   Serial.print(sensor.resolution);
+   Serial.println(F("%"));
+   Serial.println(F("------------------------------------"));*/
   // NTP
   timeClient.begin();
   for (int i = 0; i < D_EVENTCOUNT; i++) {
     mvE[i].ts = 0;
     mvE[i].state = 0;
   }
-  delay(1000);
+
   connectToMqtt();
+  delay(2000); // ersten read verzögern da gelegentlich HLH nach deepsleep
+  ts_deepSleepTime = millis() + D_AwakeDauer * 1000;
+  print_wakeup_reason(); // + mqqt wakeupreasen
+  printf("DS Dauer setup %d\n", deepSleepDauer);
+  mqttClient.publish("keller/dsin", 1, true, String(deepSleepDauer).c_str());
   Serial.print("setup end......");
 }
 
@@ -406,18 +446,23 @@ void loop() {
 
   // Look for and handle WebSocket data
   webSocket.loop();
-  if (ts > ts_DeepSleepTime) {
+  if (deepSleepEnable && ts > ts_deepSleepTime) {
     gotoDeepSleep();
   }
-  if (ts > ts_lastMovementRead + 2000) {
+  if (ts > ts_lastMovementRead + D_MovementReadIntervall * 1000) {
 
     ts_lastMovementRead = millis();
     bool movement = digitalRead(D_BEWEGuNGSSENSOR);
 
-    // Serial.printf("Move?: %d\n", movement);
+    // Serial.printf(" %ul Move: %d\n", ts, movement);
     // webSocket.sendTXT(0, msg_buf);
-
-    if (moveState != movement) { // Serial.printf("Move?: %d\n", movement);// Serial.printf("Move?: %d\n", movement);
+    Serial.print(" ");
+    Serial.print(moveState);
+    Serial.print(">");
+    Serial.print(movement);
+    if (moveState != movement) {
+      Serial.printf("\n %ul Move: %d\n", ts, movement);  // Serial.printf("Move?: %d\n", movement);
+      ts_deepSleepTime = millis() + D_AwakeDauer * 1000; // bei bewegung deepsleep verzögern
       ptrEvent++;
       if (ptrEvent >= D_EVENTCOUNT) {
         ptrEvent = 0;
@@ -444,8 +489,8 @@ void loop() {
     }
     moveState = movement;
   }
-  if (ts > ts_lastDistanceRead + 10000) {
-
+  if (ts > ts_lastDistanceRead + D_DistanceReadIntervall * 1000) {
+    // ts > 25000
     uint distance = getDistance();
     ts_lastDistanceRead = millis();
     const int capacity = JSON_OBJECT_SIZE(3);
@@ -459,7 +504,7 @@ void loop() {
     mqttClient.publish("keller/distance", 1, true, String(distance).c_str());
     webSocket.sendTXT(0, msg_buf);
   }
-  if (ts > ts_lastDHT11Read + 30000) {
+  if (ts > ts_lastDHT11Read + D_DHT11ReadIntervall * 1000) {
     ts_lastDHT11Read = millis();
     sensors_event_t event;
 
@@ -505,8 +550,8 @@ void gotoDeepSleep() {
 
   last = now.tv_sec;
 
-  esp_sleep_enable_timer_wakeup(1000000 * D_DeepSleepDauer); // set timer but don't sleep now
-                                                             // esp_bluedroid_disable, esp_bt_controller_disable, esp_wifi_stop
+  esp_sleep_enable_timer_wakeup(60000000 * deepSleepDauer); // set timer but don't sleep now
+                                                            // esp_bluedroid_disable, esp_bt_controller_disable, esp_wifi_stop
   printf("config IO\n");
   // Wake if low=0 high=1
   esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
@@ -578,8 +623,11 @@ esp_sleep_wakeup_cause_t print_wakeup_reason() {
     break;
   default:
     Serial.println("Wakeup was not caused by deep sleep: ");
+    mqttClient.publish("keller/movement", 1, true, String().c_str());
+    // reset
     break;
   }
+  mqttClient.publish("keller/wakeUpReason", 1, true, String(wakeup_reason).c_str());
   return wakeup_reason;
 }
 uint getDistance() {
@@ -594,8 +642,8 @@ uint getDistance() {
   digitalWrite(D_SR04_TriggerPin, LOW);
   zeit = pulseIn(D_SR04_EchoPin, HIGH); // Echo-Zeit messen
   interrupts();
-  zeit = (zeit / 2);        // Zeit halbieren
-  entfernung = zeit / 29.1; // Zeit in Zentimeter umrechnen
+  // zeit = (zeit / 2);        // Zeit halbieren
+  entfernung = zeit / 58.2; // Zeit in Zentimeter umrechnen
   return (entfernung);
 }
 

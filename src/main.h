@@ -18,15 +18,16 @@ extern "C" {
 }
 #include <AsyncMqttClient.h>
 #include <driver/rtc_io.h>
+#include <EEPROM.h>
 
 #define D_SR04_EchoPin 14
 #define D_SR04_TriggerPin 12
 #define D_DHT11 13
 #define D_BEWEGuNGSSENSOR 15
 #define D_EVENTCOUNT 20
-#define D_DeepSleepDauer 90       // sec
-#define D_AwakeDauer 60           // sec
-#define D_DHT11ReadIntervall 10   // sec
+#define D_DeepSleepDauer 120      // sec
+#define D_AwakeDauer 45           // sec
+#define D_DHT11ReadIntervall 20   // sec
 #define D_DistanceReadIntervall 3 // sec)
 #define D_MovementReadIntervall 2 // sec)
 
@@ -63,3 +64,4 @@ void onMqttPublish(uint16_t packetId);
 
 esp_sleep_wakeup_cause_t print_wakeup_reason();
 void gotoDeepSleep();
+int msg2Int(char *msg, size_t len);
